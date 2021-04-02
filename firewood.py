@@ -1,5 +1,3 @@
-# Long scan using dnmasscan
-
 import requests, sys, subprocess, getopt, json
 
 full_cmd_arguments = sys.argv
