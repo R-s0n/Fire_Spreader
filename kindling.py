@@ -86,7 +86,13 @@ for subdomain in httprobe:
 f = open("/tmp/httprobe_results.tmp", "w")
 f.write(httprobe_string)
 f.close()
-now = datetime.now().strftime("%d-%m-%y")
+now = datetime.now().strftime("%d-%m-%y_%I%p")
 print(f"[-] Running EyeWitness report against {fqdn} httprobe results...")
 subprocess.run([f"cd ~/Tools/EyeWitness/Python; ./EyeWitness.py -f /tmp/httprobe_results.tmp -d ~/Reports/EyeWitness_{now} --no-prompt --jitter 5 --timeout 10"], shell=True)
 print(f"[+] EyeWitness report complete!")
+print(f"[-] Sending notification through Slack...")
+message_urls_string = ""
+for url in thisFqdn['recon']['subdomains']['httprobeAdded']:
+    message_urls_string += f"{url}\n"
+message_json = {'text':f'kindling.py (live server probe) completed successfully!  This scan of {fqdn} discovered the following URLs went live in the last 6 hours:\n\n{message_urls_string}\nHappy Hunting :)','username':'Recon Box','icon_emoji':':eyes:'}
+slack_auto = requests.post('https://hooks.slack.com/services/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', json=message_json)
