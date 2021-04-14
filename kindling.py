@@ -1,3 +1,6 @@
+# Find live servers and run EyeWitness report
+# Automated - 6 hrs
+
 import requests, sys, subprocess, getopt, json
 from datetime import datetime
 

@@ -1,3 +1,6 @@
+# Find which IP/Port combinations (from firewood.py) are hosting a web server
+# Automated - 24 hrs
+
 import requests, sys, subprocess, getopt, json
 
 full_cmd_arguments = sys.argv
@@ -21,8 +24,9 @@ server_data_arr = thisFqdn['recon']['subdomains']['masscan']
 live_server_arr = []
 
 for target in server_data_arr:
-    connect = subprocess.run([f"echo {target} | ~/go/bin/httprobe -t 50000"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
+    connect = subprocess.run([f"echo {target} | ~/go/bin/httprobe -t 30000 -c 50"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
     temp_arr = connect.stdout.split("\n")
+    print(f"[-] Testing for live webserver: {target}")
     for each in temp_arr:   
         if len(each) > 5:
             print(f"[+] Found live webserver: {each}")

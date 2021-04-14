@@ -1,3 +1,6 @@
+# Find server IP w/ open port number
+# One-off Scan
+
 import requests, sys, subprocess, getopt, json
 
 full_cmd_arguments = sys.argv
