@@ -1,7 +1,8 @@
 # Find live servers and run EyeWitness report
 # Automated - 6 hrs
+# Runtime - 200 min avg
 
-import requests, sys, subprocess, getopt, json
+import requests, sys, subprocess, getopt, json, time, math
 from datetime import datetime
 
 full_cmd_arguments = sys.argv
@@ -18,6 +19,11 @@ for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
         fqdn = current_value
 
+start = time.time()
+
+get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
+home_dir = get_home_dir.stdout.replace("\n", "")
+
 r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 
@@ -28,11 +34,11 @@ if go_check.returncode == 0:
     print("[+] Go is installed")
 else :
     print("[!] Go is NOT installed -- Installing now...")
-    cloning = subprocess.run(["sudo apt-get install -y golang-go; apt-get install -y gccgo-go; mkdir ~/go;"], stdout=subprocess.DEVNULL, shell=True)
+    cloning = subprocess.run([f"sudo apt-get install -y golang-go; apt-get install -y gccgo-go; mkdir {home_dir}/go;"], stdout=subprocess.DEVNULL, shell=True)
     print("[+] Go was successfully installed")
 
 try:
-    httprobe_check = subprocess.run(["~/go/bin/httprobe -h"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+    httprobe_check = subprocess.run([f"{home_dir}/go/bin/httprobe -h"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
     if httprobe_check.returncode == 0:
         print("[+] Httprobe is already installed")
     else :
@@ -46,7 +52,9 @@ try:
     f = open("/tmp/consolidated_list.tmp", "w")
     f.write(subdomainStr)
     f.close()
-    httprobe_results = subprocess.run([f"cat /tmp/consolidated_list.tmp | ~/go/bin/httprobe -t 20000 -p http:8080 -p http:8000 -p http:8008 -p https:8443 -p https:44300 -p https:44301"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
+    httprobe_results = subprocess.run([f"cat /tmp/consolidated_list.tmp | {home_dir}/go/bin/httprobe -t 20000 -c 50 -p http:8080 -p http:8000 -p http:8008 -p https:8443 -p https:44300 -p https:44301"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
+    r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+    thisFqdn = r.json()
     httprobe = httprobe_results.stdout.split("\n")
     previous_httprobe = thisFqdn['recon']['subdomains']['httprobe']
     httprobeAdded = []
@@ -68,20 +76,20 @@ subprocess.run(["rm /tmp/consolidated_list.tmp"], stdout=subprocess.DEVNULL, std
 # Send new fqdn object
 r = requests.post('http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 
-directory_check = subprocess.run([f"ls ~/Reports"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, shell=True)
+directory_check = subprocess.run([f"ls {home_dir}/Reports"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, shell=True)
 if directory_check.returncode == 0:
     print("[+] Identified Reports directory")
 else:
     print("[!] Could not locate Reports directory -- Creating now...")
-    cloning = subprocess.run([f"mkdir ~/Reports"], stdout=subprocess.DEVNULL, shell=True)
+    cloning = subprocess.run([f"mkdir {home_dir}/Reports"], stdout=subprocess.DEVNULL, shell=True)
     print("[+] Reports directory successfully created")
 
-eyewitness_check = httprobe_check = subprocess.run(["ls ~/Tools/EyeWitness"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+eyewitness_check = httprobe_check = subprocess.run([f"ls {home_dir}/Tools/EyeWitness"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
 if httprobe_check.returncode == 0:
     print("[+] EyeWitness is already installed")
 else :
     print("[!] EyeWitness is NOT already installed -- Installing now...")
-    cloning = subprocess.run(["cd ~/Tools; git clone https://github.com/FortyNorthSecurity/EyeWitness.git;  cd EyeWitness/Python/setup/;  sudo ./setup.sh"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+    cloning = subprocess.run([f"cd {home_dir}/Tools; git clone https://github.com/FortyNorthSecurity/EyeWitness.git;  cd EyeWitness/Python/setup/;  sudo ./setup.sh"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
     print("[+] EyeWitness successfully installed!")
 httprobe_string = ""
 for subdomain in httprobe:
@@ -91,11 +99,17 @@ f.write(httprobe_string)
 f.close()
 now = datetime.now().strftime("%d-%m-%y_%I%p")
 print(f"[-] Running EyeWitness report against {fqdn} httprobe results...")
-subprocess.run([f"cd ~/Tools/EyeWitness/Python; ./EyeWitness.py -f /tmp/httprobe_results.tmp -d ~/Reports/EyeWitness_{now} --no-prompt --jitter 5 --timeout 10"], shell=True)
+subprocess.run([f"cd {home_dir}/Tools/EyeWitness/Python; ./EyeWitness.py -f /tmp/httprobe_results.tmp -d {home_dir}/Reports/EyeWitness_kindling_{fqdn}_{now} --no-prompt --jitter 5 --timeout 10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
 print(f"[+] EyeWitness report complete!")
 print(f"[-] Sending notification through Slack...")
 message_urls_string = ""
 for url in thisFqdn['recon']['subdomains']['httprobeAdded']:
     message_urls_string += f"{url}\n"
-message_json = {'text':f'kindling.py (live server probe) completed successfully!  This scan of {fqdn} discovered the following URLs went live in the last 6 hours:\n\n{message_urls_string}\nHappy Hunting :)','username':'Recon Box','icon_emoji':':eyes:'}
-slack_auto = requests.post('https://hooks.slack.com/services/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', json=message_json)
+end = time.time()
+runtime_seconds = math.floor(end - start)
+runtime_minutes = math.floor(runtime_seconds / 60)
+message_json = {'text':f'kindling.py (live server probe) completed successfully in {runtime_minutes} minutes!  This scan of {fqdn} discovered the following URLs went live in the last 6 hours:\n\n{message_urls_string}\nHappy Hunting :)','username':'Recon Box','icon_emoji':':eyes:'}
+f = open(f'{home_dir}/.keys/slack_web_hook')
+token = f.read()
+slack_auto = requests.post(f'https://hooks.slack.com/services/{token}', json=message_json)
+print(f"[+] Kindling.py completed successfully in {runtime_minutes} minutes!")
