@@ -54,7 +54,7 @@ for subdomain in subdomainArr:
 f = open("/tmp/dnmasscan.tmp", "w")
 f.write(consolidatedStr)
 f.close()
-dnmasscan_results = subprocess.run([f"cd {home_dir}/Tools/dnmasscan; sudo ./dnmasscan /tmp/dnmasscan.tmp /tmp/dns.log -p1-65535 -oJ /tmp/masscan.json --rate=500"], shell=True)
+dnmasscan_results = subprocess.run([f"cd {home_dir}/Tools/dnmasscan; sudo ./dnmasscan /tmp/dnmasscan.tmp /tmp/dns.log -p1-65535 -oJ /tmp/masscan.json --rate=100000"], shell=True)
 subprocess.run(["rm /tmp/dnmasscan.tmp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
 f = open("/tmp/masscan.json", "r")
 masscan_data = json.load(f)

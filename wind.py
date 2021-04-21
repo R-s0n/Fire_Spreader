@@ -24,6 +24,11 @@ for current_argument, current_value in arguments:
 get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
 home_dir = get_home_dir.stdout.replace("\n", "")
 
+now_start = datetime.now().strftime("%d-%m-%y_%I%p")
+f = open(f"{home_dir}/Logs/automation.log", "a")
+f.write(f"Wind.py - Start Time: {now_start}\n")
+f.close()
+
 r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 
@@ -59,7 +64,6 @@ thisFqdn['recon']['subdomains']['masscanLive'] = final_arr
 r = requests.post('http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 
 
-
 directory_check = subprocess.run([f"ls {home_dir}/Reports"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, shell=True)
 if directory_check.returncode == 0:
     print("[+] Identified Reports directory")
@@ -89,6 +93,10 @@ subprocess.run([f"cd {home_dir}/Tools/EyeWitness/Python; ./EyeWitness.py -f /tmp
 print(f"[+] EyeWitness report complete!")
 
 
+now_end = datetime.now().strftime("%d-%m-%y_%I%p")
+f = open(f"{home_dir}/Logs/automation.log", "a")
+f.write(f"Wind.py - End Time: {now_end}\n")
+f.close()
 
 end = time.time()
 runtime_seconds = math.floor(end - start)
