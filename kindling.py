@@ -7,17 +7,32 @@ from datetime import datetime
 
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "d:"
-long_options = ["domain="]
+short_options = "d:s:p:"
+long_options = ["domain=","server=","port="]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
 except:
     sys.exit(2)
 
+hasDomain = False
+hasServer = False
+hasPort = False
+
 for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
         fqdn = current_value
+        hasDomain = True
+    if current_argument in ("-s", "--server"):
+        server_ip = current_value
+        hasServer = True
+    if current_argument in ("-p", "--port"):
+        server_port = current_value
+        hasPort = True
+
+if hasDomain is False or hasServer is False or hasPort is False:
+    print("[!] USAGE: python3 kindling.py -d [TARGET_FQDN] -s [WAPT_FRAMEWORK_IP] -p [WAPT_FRAMEWORK_PORT]")
+    sys.exit(2)
 
 start = time.time()
 
@@ -29,7 +44,7 @@ f = open(f"{home_dir}/Logs/automation.log", "a")
 f.write(f"Kindling.py - Start Time: {now_start}\n")
 f.close()
 
-r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 
 subdomainArr = thisFqdn['recon']['subdomains']['consolidated']
@@ -58,7 +73,7 @@ try:
     f.write(subdomainStr)
     f.close()
     httprobe_results = subprocess.run([f"cat /tmp/consolidated_list.tmp | {home_dir}/go/bin/httprobe -t 20000 -c 50 -p http:8080 -p http:8000 -p http:8008 -p https:8443 -p https:44300 -p https:44301"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
-    r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+    r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
     thisFqdn = r.json()
     httprobe = httprobe_results.stdout.split("\n")
     previous_httprobe = thisFqdn['recon']['subdomains']['httprobe']
@@ -79,7 +94,7 @@ except:
 
 subprocess.run(["rm /tmp/consolidated_list.tmp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
 # Send new fqdn object
-r = requests.post('http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 
 directory_check = subprocess.run([f"ls {home_dir}/Reports"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, shell=True)
 if directory_check.returncode == 0:

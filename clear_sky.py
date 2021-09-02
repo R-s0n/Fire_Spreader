@@ -6,17 +6,29 @@ from datetime import datetime
 
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "d:"
-long_options = ["domain="]
+short_options = "d:s:p:"
+long_options = ["domain=","server=","port="]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
 except:
     sys.exit(2)
 
+hasDomain = False
+hasServer = False
+hasPort = False
+
 for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
         fqdn = current_value
+        hasDomain = True
+    if current_argument in ("-s", "--server"):
+        server_ip = current_value
+        hasServer = True
+    if current_argument in ("-p", "--port"):
+        server_port = current_value
+        hasPort = True
+
 
 get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
 home_dir = get_home_dir.stdout.replace("\n", "")
@@ -76,10 +88,10 @@ else:
 print(f"[+] NMap scan completed successfully!  A report has been created in the ~/Reports directory")
 
 print(f"[-] Updating database...")
-r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 thisFqdn['recon']['subdomains']['cloudRanges'] = results_arr
-final_request = requests.post(f'http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
+final_request = requests.post(f'http://{server_ip}:{server_port}/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 if final_request.status_code == 200:
     print("[+] Clear_sky.py completed successfully!")
 else:

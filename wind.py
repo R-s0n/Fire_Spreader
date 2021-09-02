@@ -7,8 +7,8 @@ from datetime import datetime
 
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "d:"
-long_options = ["domain="]
+short_options = "d:s:p:"
+long_options = ["domain=","server=","port="]
 
 start = time.time()
 
@@ -17,9 +17,20 @@ try:
 except:
     sys.exit(2)
 
+hasDomain = False
+hasServer = False
+hasPort = False
+
 for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
         fqdn = current_value
+        hasDomain = True
+    if current_argument in ("-s", "--server"):
+        server_ip = current_value
+        hasServer = True
+    if current_argument in ("-p", "--port"):
+        server_port = current_value
+        hasPort = True
 
 get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
 home_dir = get_home_dir.stdout.replace("\n", "")
@@ -29,7 +40,7 @@ f = open(f"{home_dir}/Logs/automation.log", "a")
 f.write(f"Wind.py - Start Time: {now_start}\n")
 f.close()
 
-r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 
 server_data_arr = thisFqdn['recon']['subdomains']['masscan']
@@ -58,10 +69,10 @@ for server in live_server_arr:
         final_arr.append(server)
 
 print(f"[-] Updating database...")
-r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 thisFqdn['recon']['subdomains']['masscanLive'] = final_arr
-r = requests.post('http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 
 
 directory_check = subprocess.run([f"ls {home_dir}/Reports"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, shell=True)

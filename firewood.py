@@ -6,22 +6,37 @@ import requests, sys, subprocess, getopt, json
 
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "d:"
-long_options = ["domain="]
+short_options = "d:s:p:"
+long_options = ["domain=","server=","port="]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
 except:
     sys.exit(2)
 
+hasDomain = False
+hasServer = False
+hasPort = False
+
 for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
         fqdn = current_value
+        hasDomain = True
+    if current_argument in ("-s", "--server"):
+        server_ip = current_value
+        hasServer = True
+    if current_argument in ("-p", "--port"):
+        server_port = current_value
+        hasPort = True
+
+if hasDomain is False or hasServer is False or hasPort is False:
+    print("[!] USAGE: python3 firewood.py -d [TARGET_FQDN] -s [WAPT_FRAMEWORK_IP] -p [WAPT_FRAMEWORK_PORT]")
+    sys.exit(2)
 
 get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
 home_dir = get_home_dir.stdout.replace("\n", "")
 
-r = requests.post('http://10.0.0.211:8000/api/auto', data={'fqdn':fqdn})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto', data={'fqdn':fqdn})
 thisFqdn = r.json()
 
 subdomainArr = thisFqdn['recon']['subdomains']['consolidated']
@@ -74,7 +89,7 @@ for server in old_masscan_arr:
         removed.append(server)
 thisFqdn['recon']['subdomains']['masscanAdded'] = added
 thisFqdn['recon']['subdomains']['masscanRemoved'] = removed
-r = requests.post('http://10.0.0.211:8000/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
+r = requests.post(f'http://{server_ip}:{server_port}/api/auto/update', json=thisFqdn, headers={'Content-type':'application/json'})
 
 if r.status_code == 200:
     print("[+] Firewood.py completed successfully!")
