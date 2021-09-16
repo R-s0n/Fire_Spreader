@@ -17,6 +17,7 @@ except:
 hasDomain = False
 hasServer = False
 hasPort = False
+updateMode = False
 
 for current_argument, current_value in arguments:
     if current_argument in ("-d", "--domain"):
@@ -28,6 +29,8 @@ for current_argument, current_value in arguments:
     if current_argument in ("-p", "--port"):
         server_port = current_value
         hasPort = True
+    if current_argument in ("-u", "--update"):
+        updateMode = True
 
 
 get_home_dir = subprocess.run(["echo $HOME"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, shell=True)
@@ -35,38 +38,42 @@ home_dir = get_home_dir.stdout.replace("\n", "")
 
 print(f"[+] Running ClearSky against {fqdn}!")
 
-print("[-] Checking for AWS IP Range JSON...")
-document_check = subprocess.run([f"ls {home_dir}/Wordlists/aws-ip-ranges.json"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, shell=True)
-if document_check.returncode == 0:
-    print("[+] AWS IP Range JSON Identified!")
-else:
-    print("[!] Could not locate AWS IP Range JSON -- Downloading now...")
-    subprocess.run([f"wget -O {home_dir}/Wordlists/aws-ip-ranges.json https://ip-ranges.amazonaws.com/ip-ranges.json"], stdout=subprocess.DEVNULL, shell=True)
-    print("[+] Tools directory successfully created")
-print("[-] Pulling IP Ranges from JSON...")
-f = open(f'{home_dir}/Wordlists/aws-ip-ranges.json')
-aws_ips = json.load(f)
-ip_ranges = []
-ip_ranges_str = ""
-for ip_range in aws_ips['prefixes']:
-    ip_ranges.append(ip_range['ip_prefix'])
-    ip_ranges_str += f"{ip_range['ip_prefix']}\n"
-f.close()
-f = open("/tmp/aws_ips.tmp", "w")
-f.write(ip_ranges_str)
-f.close()
+if updateMode:
+    print("[-] Checking for AWS IP Range JSON...")
+    document_check = subprocess.run([f"ls {home_dir}/Wordlists/aws-ip-ranges.json"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, shell=True)
+    if document_check.returncode == 0:
+        print("[+] AWS IP Range JSON Identified!")
+    else:
+        print("[!] Could not locate AWS IP Range JSON -- Downloading now...")
+        subprocess.run([f"wget -O {home_dir}/Wordlists/aws-ip-ranges.json https://ip-ranges.amazonaws.com/ip-ranges.json"], stdout=subprocess.DEVNULL, shell=True)
+        print("[+] Tools directory successfully created")
+    print("[-] Pulling IP Ranges from JSON...")
+    f = open(f'{home_dir}/Wordlists/aws-ip-ranges.json')
+    aws_ips = json.load(f)
+    ip_ranges = []
+    ip_ranges_str = ""
+    for ip_range in aws_ips['prefixes']:
+        ip_ranges.append(ip_range['ip_prefix'])
+        ip_ranges_str += f"{ip_range['ip_prefix']}\n"
+    f.close()
+    f = open("/tmp/aws_ips.tmp", "w")
+    f.write(ip_ranges_str)
+    f.close()
 
-print(f"[-] Running initial scan to identify hosts...")
-ip_count = subprocess.run([f"nmap -n -sL -iL /tmp/aws_ips.tmp | wc -l"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
-ips = ip_count.stdout.replace("\n", "")
-print(f"[-] Running masscan against {ips} IPs...")
-subprocess.run([f"sudo {home_dir}/Tools/masscan/bin/masscan -p443 --rate 40000 -iL /tmp/aws_ips.tmp -oL /tmp/clear_sky_masscan.tmp"], shell=True)
-subprocess.run(["cat /tmp/clear_sky_masscan.tmp | awk {'print $4'} | awk NF | sort -u > /tmp/tls-scan-in.tmp"], shell=True)
-print(f"[+] Successfully completed running masscan against {ips} IPs!")
+    print(f"[-] Running initial scan to identify hosts...")
+    ip_count = subprocess.run([f"nmap -n -sL -iL /tmp/aws_ips.tmp | wc -l"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+    ips = ip_count.stdout.replace("\n", "")
 
-print(f"[-] Running tls-scan on masscan results to collect SSL/TLS Certificates...")
-subprocess.run([f"cat /tmp/tls-scan-in.tmp | {home_dir}/Tools/tls-scan/tls-scan --port=443 --concurrency=150 --cacert={home_dir}/Tools/tls-scan/ca-bundle.crt 2>/dev/null -o /tmp/tls-results.json"], shell=True)
-print(f"[+] Successfully completed the tls-scan!")
+    print(f"[-] Running masscan against {ips} IPs...")
+    subprocess.run([f"sudo {home_dir}/Tools/masscan/bin/masscan -p443 --rate 40000 -iL /tmp/aws_ips.tmp -oL /tmp/clear_sky_masscan.tmp"], shell=True)
+    subprocess.run(["cat /tmp/clear_sky_masscan.tmp | awk {'print $4'} | awk NF | sort -u > /tmp/tls-scan-in.tmp"], shell=True)
+    
+    print(f"[+] Successfully completed running masscan against {ips} IPs!")
+
+    print(f"[-] Running tls-scan on masscan results to collect SSL/TLS Certificates...")
+    subprocess.run([f"cat /tmp/tls-scan-in.tmp | {home_dir}/Tools/tls-scan/tls-scan --port=443 --concurrency=150 --cacert={home_dir}/Tools/tls-scan/ca-bundle.crt 2>/dev/null -o /tmp/tls-results.json"], shell=True)
+    print(f"[+] Successfully completed the tls-scan!")
+
 print(f"[-] Using jq to parse for the FQDN...")
 subprocess.run([f"""cat /tmp/tls-results.json | jq --slurp -r '.[]? | select(.certificateChain[]?.subject | test("\\\{fqdn}\\\W")) | .ip | @text' > /tmp/tls_filtered.tmp"""], shell=True)
 print(f"[+] Successfully parsed tls-scan results!")
